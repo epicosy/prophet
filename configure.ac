@@ -3,7 +3,6 @@
 
 AC_INIT([prophet],[0.1],[fanl@csail.mit.edu, zichaoqi@mit.edu])
 AC_CONFIG_AUX_DIR([build-aux])
-AC_CONFIG_TESTDIR([tests])
 AC_CONFIG_HEADERS([config.h])
 
 AM_INIT_AUTOMAKE([foreign -Wall   -Wno-portability])
@@ -44,8 +43,6 @@ AC_CHECK_SIZEOF([long])
 AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
-    tests/Makefile
-    tests/atlocal
     wrap/Makefile
     include/Makefile
 ])
