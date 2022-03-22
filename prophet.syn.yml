@@ -1,0 +1,9 @@
+prophet:
+  program: "prophet"
+  path: "/usr/local/bin"
+  help: '--help'
+  args:
+    -feature-para: "/home/prophet/crawler/para-all.out"
+    -first-n-loc: "10"
+  sanity_check: true
+  fault_loc: true
