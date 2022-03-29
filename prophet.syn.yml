@@ -2,6 +2,9 @@ prophet:
   program: "prophet"
   path: "/usr/local/bin"
   help: '--help'
+  api_cmds:
+    build_cmd: build
+    test_cmd: test
   args:
     -feature-para: "/home/prophet/crawler/para-all.out"
     -first-n-loc: "10"

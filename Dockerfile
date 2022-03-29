@@ -72,4 +72,4 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata && \
     cp -a synapser/plugins/.  ~/.synapser/plugins/tool
 
 # Install genprog plugin for synapser
-RUN synapser plugin install -d /home/workspace/prophet
+RUN /etc/init.d/postgresql start && synapser plugin install -d /home/workspace/prophet
