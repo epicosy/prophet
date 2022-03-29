@@ -138,9 +138,10 @@ class Prophet(ToolHandler):
         self.repair_cmd.add_arg(opt='-dump-passed-candidate', arg=str(repair_request.working_dir.parent / 'passed.txt'))
         self.repair_cmd.add_arg(opt='-r', arg=str(repair_request.working_dir / 'workdir'))
         rev_file = write_revlog_file(repair_request.working_dir, neg_tests=repair_request.args['neg_tests'],
-                                          pos_tests=repair_request.args['pos_tests'])
-        config_file = write_config_file(repair_request.working_dir, repair_request.manifest, rev_file,
-                                             build_cmd=signals["build_cmd"], test_cmd=signals["test_cmd"])
+                                     pos_tests=repair_request.args['pos_tests'])
+        config_file = write_config_file(rev_file=rev_file, working_dir=repair_request.working_dir,
+                                        manifest_files=repair_request.manifest, build_cmd=signals["build_cmd"],
+                                        test_cmd=signals["test_cmd"])
         self.repair_cmd.add_arg(opt=str(config_file), arg='')
 
         return self.repair_cmd
