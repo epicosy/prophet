@@ -128,7 +128,7 @@ class Prophet(ToolHandler):
         version = ''
 
     def __init__(self, **kw):
-        super().__init__(self, **kw)
+        super().__init__(**kw)
         self._api_handlers = {
             'build': ProphetBuild,
             'test': ProphetTest
