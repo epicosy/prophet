@@ -6,7 +6,7 @@ prophet:
     build_cmd: build
     test_cmd: test
   args:
-    -feature-para: "/home/prophet/crawler/para-all.out"
+    -feature-para: "/home/workspace/prophet/crawler/para-all.out"
     -first-n-loc: "10"
   sanity_check: true
   fault_loc: true
