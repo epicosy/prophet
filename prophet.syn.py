@@ -140,8 +140,8 @@ class Prophet(ToolHandler):
         rev_file = write_revlog_file(repair_request.working_dir, neg_tests=repair_request.args['neg_tests'],
                                      pos_tests=repair_request.args['pos_tests'])
         config_file = write_config_file(rev_file=rev_file, working_dir=repair_request.working_dir,
-                                        manifest_files=repair_request.manifest, build_cmd=signals["build_cmd"],
-                                        test_cmd=signals["test_cmd"])
+                                        manifest_files=list(repair_request.manifest.keys()),
+                                        build_cmd=signals["build_cmd"], test_cmd=signals["test_cmd"])
         self.repair_cmd.add_arg(opt=str(config_file), arg='')
 
         return self.repair_cmd
