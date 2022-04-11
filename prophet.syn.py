@@ -14,33 +14,34 @@ from synapser.core.database import Signal
 from synapser.handlers.tool import ToolHandler
 from synapser.utils.misc import match_patches
 from synapser.core.exc import CommandError
-from synapser.handlers.api import BuildAPIHandler, TestAPIHandler, APIHandler
+from synapser.handlers.api import APIHandler
 
 
-def write_build_file(workdir):
-    parent_dir = path.abspath(path.join(workdir, pardir))
-    build_cmd = "python3 {cb_repair} compile -wd {wd} -cn None -B {pd}/patches --gcc --exit_err -l {wd}/clog.txt".format(
-        cb_repair=environ["CBREPAIR"], wd=workdir, pd=parent_dir)
-    sh_script = "#!/bin/bash\n" + build_cmd
-    makefile = ".PHONY: do_script\n\ndo_script:\n\t./build.sh\n\nprerequisites: do_script\n\ntarget: prerequisites\n"
-    build_file_path = workdir + "/build.sh"
-    makefile_path = workdir + "/Makefile"
+def write_sh_file(workdir, cmd, name):
+#    parent_dir = path.abspath(path.join(workdir, pardir))
+#    build_cmd = "python3 {cb_repair} compile -wd {wd} -cn None -B {pd}/patches --gcc --exit_err -l {wd}/clog.txt".format(
+#        cb_repair=environ["CBREPAIR"], wd=workdir, pd=parent_dir)
+    sh_script = "#!/bin/bash\n" + cmd + " $@"
+#    makefile = ".PHONY: do_script\n\ndo_script:\n\t./build.sh\n\nprerequisites: do_script\n\ntarget: prerequisites\n"
+    file_path = workdir / name
+#    makefile_path = workdir / "Makefile"
 
-    with open(build_file_path, "w") as bfp, open(makefile_path, "w") as mfp:
-        bfp.write(sh_script)
-        mfp.write(makefile)
+    with open(file_path, "w") as fp:
+        fp.write(f"{sh_script}\n")
+#        mfp.write(makefile)
 
-    chmod(build_file_path, 0o755)
-    chmod(makefile_path, 0o755)
+    chmod(file_path, 0o755)
+#    chmod(makefile_path, 0o755)
+    return file_path
 
 
-def write_config_file(rev_file: Path, working_dir: Path, manifest_files: list, build_cmd: str, test_cmd: str):
-    config_file = working_dir.parent / Path('run.conf')
+def write_config_file(rev_file: Path, working_dir: Path, src_dir: Path, test_dir: Path, manifest_files: list, build_cmd: str, test_cmd: str):
+    config_file = src_dir / Path('run.conf')
 
     with config_file.open(mode="w") as cf:
         rev_str = f"revision_file={rev_file}"
-        src_dir = f"src_dir={working_dir}"
-        test_dir = f"test_dir={working_dir.parent / 'tests'}"
+        src_dir = f"src_dir={src_dir}"
+        test_dir = f"test_dir={test_dir}"
         loc = "localizer=profile"
         target_file = f"bugged_file={manifest_files[0]}"
         cf.write(f"{rev_str}\n{src_dir}\n{test_dir}\nbuild_cmd={build_cmd}\ntest_cmd={test_cmd}\n{target_file}\n{loc}")
@@ -48,8 +49,8 @@ def write_config_file(rev_file: Path, working_dir: Path, manifest_files: list, b
     return config_file
 
 
-def write_revlog_file(working_dir: Path, neg_tests: int, pos_tests: int):
-    rev_file = working_dir.parent / "tests.revlog"
+def write_revlog_file(work_dir: Path, neg_tests: int, pos_tests: int):
+    rev_file = work_dir / "tests.revlog"
 
     with rev_file.open(mode="w") as rf:
         diff_cases = f"Diff Cases: Tot {neg_tests}"
@@ -63,10 +64,18 @@ def write_revlog_file(working_dir: Path, neg_tests: int, pos_tests: int):
     return rev_file
 
 
-class ProphetBuild(BuildAPIHandler):
+class ProphetBuild(APIHandler):
     def __call__(self, signal: Signal, data: dict, *args, **kwargs):
-        data['env'] = {
-            'PATH': environ["PATH"]
+        wrap_path, llvm_path = environ["PATH"].split(':')[:2]
+        wrap_path = wrap_path.replace('/home/workspace/prophet', data['args']['dep_dir'])
+        llvm_path = llvm_path.replace('/usr/local', data['args']['dep_dir'])
+
+        data['args']['env'] = {
+            'PATH': f"{wrap_path}:{llvm_path}",
+            'COMPILE_CMD': environ["COMPILE_CMD"].replace("/usr/local", data['args']['dep_dir']),
+            'INDEX_FILE': environ["INDEX_FILE"],
+            'CC': 'gcc',
+            'CXX': 'gcc'
         }
 
         response_json = super().__call__(signal.url, data)
@@ -85,11 +94,12 @@ class ProphetBuild(BuildAPIHandler):
         return exit_status == 0
 
 
-class ProphetTest(TestAPIHandler):
+class ProphetTest(APIHandler):
     class Meta:
         label = 'test_api'
 
     def __call__(self, signal: Signal, data: dict, *args, **kwargs) -> bool:
+        self.app.log.error(f"Test: {signal}")
         response_json = super().__call__(signal.url, data)
         # TODO: check if outputs should be written to __out
         # system("rm -rf __out")
@@ -135,13 +145,20 @@ class Prophet(ToolHandler):
         }
 
     def repair(self, signals: dict, repair_request: RepairRequest) -> RepairCommand:
-        self.repair_cmd.add_arg(opt='-dump-passed-candidate', arg=str(repair_request.working_dir.parent / 'passed.txt'))
-        self.repair_cmd.add_arg(opt='-r', arg=str(repair_request.working_dir / 'workdir'))
+        work_dir = Path(repair_request.working_dir.parent / f"{repair_request.working_dir.name}_workdir")
+        test_dir = repair_request.working_dir / 'tests'
+#        work_dir.mkdir(exist_ok=True)
+        build_file = write_sh_file(repair_request.working_dir, signals["build_cmd"], 'build.sh')
+        test_file =  write_sh_file(repair_request.working_dir, signals["test_cmd"], 'test.sh')
+        test_dir.mkdir(exist_ok=True)
+        self.repair_cmd.add_arg(opt='-dump-passed-candidate', arg=str(work_dir / 'passed.txt'))
+        self.repair_cmd.add_arg(opt='-r', arg=str(work_dir))
         rev_file = write_revlog_file(repair_request.working_dir, neg_tests=repair_request.args['neg_tests'],
                                      pos_tests=repair_request.args['pos_tests'])
-        config_file = write_config_file(rev_file=rev_file, working_dir=repair_request.working_dir,
+        config_file = write_config_file(rev_file=rev_file, working_dir=work_dir, src_dir=repair_request.working_dir,
+                                        test_dir=test_dir,
                                         manifest_files=list(repair_request.manifest.keys()),
-                                        build_cmd=signals["build_cmd"], test_cmd=signals["test_cmd"])
+                                        build_cmd=build_file, test_cmd=test_file)
         self.repair_cmd.add_arg(opt=str(config_file), arg='')
 
         return self.repair_cmd
@@ -157,7 +174,7 @@ class Prophet(ToolHandler):
         """
 
         if signal.arg == 'build_cmd':
-            opts, args = getopt.getopt(extra_args[1:], "cd:hx")
+            opts, args = getopt.getopt(extra_args, "cd:hx")
             dryrun_src = ""
 
             for o, a in opts:
@@ -179,7 +196,7 @@ class Prophet(ToolHandler):
             if len(argv) < 4:
                 raise CommandError("Arguments must include: <src_dir> <test_dir> <work_dir> [cases]")
 
-            opts, args = getopt.getopt(extra_args[1:], "p:")
+            opts, args = getopt.getopt(extra_args, "p:")
             profile_dir = ""
 
             for o, a in opts:

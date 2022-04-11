@@ -8,5 +8,6 @@ prophet:
   args:
     -feature-para: "/home/workspace/prophet/crawler/para-all.out"
     -first-n-loc: "10"
+    -skip-verify: ""
   sanity_check: true
   fault_loc: true
